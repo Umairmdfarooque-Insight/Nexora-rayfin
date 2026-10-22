@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "UserDataFunctions",
+    "displayName": "nexora_api"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "e2a9195a-5534-42e2-9cf8-682c1289ad83"
+  }
+}

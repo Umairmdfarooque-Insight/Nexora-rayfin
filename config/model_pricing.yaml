@@ -1,0 +1,8 @@
+# Price of each model deployment, in USD per 1,000 tokens (T-704). The key is the deployment name
+# (AZURE_OPENAI_DEPLOYMENT). Fill in your own values: a deployment that isn't listed has no cost
+# recorded (nexora.llm.cost), and one warning names it. Example:
+#
+# my-gpt-deployment:
+#   input_per_1k: 0.0
+#   output_per_1k: 0.0
+{}

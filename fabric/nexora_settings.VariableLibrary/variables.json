@@ -1,0 +1,17 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/variableLibraryProperties/1.0.0/schema.json",
+  "variables": [
+    { "name": "APP_NAME", "type": "String", "note": "", "value": "Nexora" },
+    { "name": "UI_APP_NAME", "type": "String", "note": "", "value": "Rayfin" },
+    { "name": "ENVIRONMENT", "type": "String", "note": "", "value": "development" },
+    { "name": "RUN_STORE", "type": "String", "note": "", "value": "fabric_sql" },
+    { "name": "NEXORA_HOME_WORKSPACE_ID", "type": "String", "note": "set by deploy_home", "value": "" },
+    { "name": "NEXORA_CONTROL_LAKEHOUSE_ID", "type": "String", "note": "set by deploy_home", "value": "" },
+    { "name": "NEXORA_STAGE_RUNNER_ID", "type": "String", "note": "set by deploy_home", "value": "" },
+    { "name": "FABRIC_CONTROL_DB_SERVER", "type": "String", "note": "set by deploy_home", "value": "" },
+    { "name": "FABRIC_CONTROL_DB_NAME", "type": "String", "note": "set by deploy_home", "value": "" },
+    { "name": "OTEL_EXPORTER", "type": "String", "note": "T-704: eventhouse | azuremonitor | console; empty defaults to eventhouse in a job or UDF", "value": "" },
+    { "name": "NEXORA_EVENTHOUSE_URI", "type": "String", "note": "T-704: set by deploy_home once the home workspace's Eventhouse exists", "value": "" },
+    { "name": "NEXORA_EVENTHOUSE_DATABASE", "type": "String", "note": "T-704", "value": "nexora_telemetry" }
+  ]
+}

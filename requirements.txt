@@ -1,0 +1,17 @@
+openai
+python-dotenv
+azure-identity
+azure-keyvault-secrets
+requests
+pydantic
+pyodbc
+mssql-python
+pyyaml
+fastapi
+uvicorn
+httpx
+PyJWT[crypto]
+msal
+langgraph>=1.0,<2
+opentelemetry-sdk
+azure-monitor-opentelemetry-exporter

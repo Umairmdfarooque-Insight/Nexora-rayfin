@@ -1,0 +1,15 @@
+{
+  "name": "NexoraRunItem",
+  "displayName": "Nexora Run",
+  "displayNamePlural": "Nexora Runs",
+  "editor": {
+    "path": "/NexoraRunItem-editor"
+  },
+  "icon": {
+    "name": "NexoraRunItem-icon.png"
+  },
+  "activeArtifact": "Nexora.Run",
+  "itemCreation": {
+    "path": "/NexoraRunItem-create"
+  }
+}

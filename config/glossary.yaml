@@ -1,0 +1,12 @@
+# Business glossary: a term and the words that name it in table and column names.
+# Used to match contract entities to tables (candidate tables for Gates G2 and the
+# source resolver of T-401). Matching ignores case, spaces, dots and underscores, and
+# accepts a plural for a singular. To teach Nexora a new word, add it to the term's list;
+# no code change is needed. The file is read on every call.
+terms:
+  product: [product, products, item, sku]
+  customer: [customer, customers, client]
+  sales: [sales, salesorder, salesorderdetail, order line]
+  total sales: [total_sales, linetotal, totalsales]
+  product name: [product.name, productname]
+  customer name: [customer.name, customer.firstname, customer.lastname, customername]

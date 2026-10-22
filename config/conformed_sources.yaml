@@ -1,0 +1,12 @@
+# Approved conformed sources ("schema.table", matched ignoring case). A candidate table that
+# is not listed here needs an exception, with a rationale, approved by a data_engineer
+# (business rule 5). Gate G2 (check G2.5) reads this file on every call.
+conformed:
+  - saleslt.SalesLT_Product
+  - saleslt.SalesLT_SalesOrderDetail
+  - saleslt.SalesLT_SalesOrderHeader
+  - saleslt.SalesLT_Customer
+  - nexora_test.dim_date  # test date table from T-004
+  - nexora_test.dim_promotion  # test fixtures for the bridge scenarios (T-403)
+  - nexora_test.bridge_product_promotion
+  - nexora_test.dim_campaign

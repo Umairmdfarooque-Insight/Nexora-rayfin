@@ -1,0 +1,12 @@
+# Confidence levels for candidate relationships (T-303). Percentages are 0-100.
+# high:   orphan rate at most orphan_rate_max AND overlap at least overlap_pct_min
+# medium: orphan rate at most orphan_rate_max
+# low:    anything else
+# require_unique_target: a join into a non-unique target column is never better than low,
+# because it can't be many-to-one.
+high:
+  orphan_rate_max: 1.0
+  overlap_pct_min: 99.0
+medium:
+  orphan_rate_max: 10.0
+require_unique_target: true

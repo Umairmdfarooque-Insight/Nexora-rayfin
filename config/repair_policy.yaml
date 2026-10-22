@@ -1,0 +1,20 @@
+# Repair policy (T-505, T-603): who fixes a failed Gate G4 or G5 check, by repair code.
+#   deterministic: fixed by code, no model call
+#   llm:           regenerate only the failing object with the model
+#   user_input:    escalate; the run moves to NEEDS_INPUT with a message
+# max_attempts bounds one repair call; repair also stops early when an attempt makes no progress.
+max_attempts: 3
+policy:
+  FORMAT_STRING_INVALID: deterministic
+  DAX_SYNTAX: llm
+  DAX_REFERENCE: llm
+  RECON_MISMATCH: llm
+  SOURCE_COLUMN_MISSING: user_input
+  REL_DUPLICATE_KEYS: user_input
+  # reports (T-603): a visual or page that fails its schema or binds a missing object is regenerated
+  # from the report plan; the rest is escalated
+  REPORT_BINDING: deterministic
+  REPORT_SCHEMA: deterministic
+  REPORT_STRUCTURE: user_input
+  PUBLISH_FAILED: user_input
+default: user_input

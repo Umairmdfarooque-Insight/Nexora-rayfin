@@ -1,0 +1,3 @@
+# Keep files that tests compare byte for byte, or hash, in LF on every machine.
+samples/*.yaml text eol=lf
+schemas/*.json text eol=lf

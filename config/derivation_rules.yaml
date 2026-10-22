@@ -1,0 +1,19 @@
+# Approved derivation rules for bridge tables (business rule 4, T-403). A rule is the
+# only way to propose a bridge when no physical mapping table exists: Nexora never guesses a
+# mapping. Each rule names exactly two entities (matched ignoring case and spaces), a
+# description of the deterministic logic, and who approved it. `deduplicate: true` also
+# allows removing duplicate pairs from an existing mapping table of those two entities.
+# The file is read on every call.
+#
+# Example:
+#   rules:
+#     - id: DR1
+#       entities: [Product, Region]
+#       description: Product sold in region if any order line ships there
+#       approved_by: user@contoso.com
+#     - id: DR2
+#       entities: [Product, Promotion]
+#       description: Keep one row per (ProductID, PromotionID) pair
+#       approved_by: user@contoso.com
+#       deduplicate: true
+rules: []

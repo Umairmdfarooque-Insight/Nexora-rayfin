@@ -1,0 +1,533 @@
+{
+  "$defs": {
+    "ContractStatus": {
+      "enum": [
+        "draft",
+        "approved"
+      ],
+      "title": "ContractStatus",
+      "type": "string"
+    },
+    "ExpectedExample": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "ExpectedExample",
+      "type": "object"
+    },
+    "Feasibility": {
+      "additionalProperties": false,
+      "description": "Filled in by T-402. `data_gap` means no calculation may be produced for the KPI.",
+      "properties": {
+        "kpi": {
+          "title": "Kpi",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FeasibilityStatus"
+        },
+        "needed": {
+          "items": {
+            "$ref": "#/$defs/FeasibilityNeed"
+          },
+          "title": "Needed",
+          "type": "array"
+        },
+        "missing": {
+          "items": {
+            "$ref": "#/$defs/FeasibilityMissing"
+          },
+          "title": "Missing",
+          "type": "array"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kpi",
+        "status"
+      ],
+      "title": "Feasibility",
+      "type": "object"
+    },
+    "FeasibilityMissing": {
+      "additionalProperties": false,
+      "properties": {
+        "need": {
+          "title": "Need",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "need",
+        "reason"
+      ],
+      "title": "FeasibilityMissing",
+      "type": "object"
+    },
+    "FeasibilityNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "need": {
+          "title": "Need",
+          "type": "string"
+        },
+        "mapped": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mapped"
+        }
+      },
+      "required": [
+        "need"
+      ],
+      "title": "FeasibilityNeed",
+      "type": "object"
+    },
+    "FeasibilityStatus": {
+      "enum": [
+        "feasible",
+        "data_gap"
+      ],
+      "title": "FeasibilityStatus",
+      "type": "string"
+    },
+    "Kpi": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "formula_intent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Formula Intent"
+        },
+        "grain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grain"
+        },
+        "filters": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Filters",
+          "type": "array"
+        },
+        "time_logic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time Logic"
+        },
+        "exclusions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclusions",
+          "type": "array"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "expected_examples": {
+          "items": {
+            "$ref": "#/$defs/ExpectedExample"
+          },
+          "title": "Expected Examples",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/KpiStatus",
+          "default": "draft"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Kpi",
+      "type": "object"
+    },
+    "KpiStatus": {
+      "enum": [
+        "draft",
+        "approved",
+        "data_gap"
+      ],
+      "title": "KpiStatus",
+      "type": "string"
+    },
+    "LockedFact": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "source_question_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Question Id"
+        },
+        "locked_at": {
+          "title": "Locked At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "locked_at"
+      ],
+      "title": "LockedFact",
+      "type": "object"
+    },
+    "OpenQuestion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "blocking": {
+          "default": false,
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "source": {
+          "$ref": "#/$defs/QuestionSource",
+          "default": "rule"
+        },
+        "status": {
+          "$ref": "#/$defs/QuestionStatus",
+          "default": "open"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "dismiss_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dismiss Reason"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "OpenQuestion",
+      "type": "object"
+    },
+    "QuestionSource": {
+      "enum": [
+        "rule",
+        "llm",
+        "reviewer"
+      ],
+      "title": "QuestionSource",
+      "type": "string"
+    },
+    "QuestionStatus": {
+      "enum": [
+        "open",
+        "answered",
+        "dismissed"
+      ],
+      "title": "QuestionStatus",
+      "type": "string"
+    },
+    "SecurityRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "applies_to": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Applies To",
+          "type": "array"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "SecurityRequirement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/ContractStatus",
+      "default": "draft"
+    },
+    "domain": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Domain"
+    },
+    "business_objective": {
+      "minLength": 1,
+      "title": "Business Objective",
+      "type": "string"
+    },
+    "grain": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Grain"
+    },
+    "entities": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "kpis": {
+      "items": {
+        "$ref": "#/$defs/Kpi"
+      },
+      "title": "Kpis",
+      "type": "array"
+    },
+    "dimensions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Dimensions",
+      "type": "array"
+    },
+    "filters": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Filters",
+      "type": "array"
+    },
+    "currency": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Currency"
+    },
+    "exclusions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "security": {
+      "items": {
+        "$ref": "#/$defs/SecurityRequirement"
+      },
+      "title": "Security",
+      "type": "array"
+    },
+    "open_questions": {
+      "items": {
+        "$ref": "#/$defs/OpenQuestion"
+      },
+      "title": "Open Questions",
+      "type": "array"
+    },
+    "locked_facts": {
+      "items": {
+        "$ref": "#/$defs/LockedFact"
+      },
+      "title": "Locked Facts",
+      "type": "array"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "feasibility": {
+      "items": {
+        "$ref": "#/$defs/Feasibility"
+      },
+      "title": "Feasibility",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "business_objective"
+  ],
+  "title": "BusinessContract",
+  "type": "object"
+}

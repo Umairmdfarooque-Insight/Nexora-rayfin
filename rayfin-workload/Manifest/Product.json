@@ -1,0 +1,14 @@
+{
+  "_comment": "Best-effort reconstruction (see README.md and fabric-hosting.md's platform-limits table): the real Workload ID (Publisher.Workload, fixed once registered) and branding assets come from the tenant/publisher registration step, not from this repo.",
+  "name": "Nexora",
+  "displayName": "Rayfin",
+  "items": [
+    {
+      "name": "NexoraRunItem",
+      "displayName": "Nexora Run",
+      "description": "A business requirement being turned into an approved semantic model and report.",
+      "contentType": "NexoraRun",
+      "configurationSections": []
+    }
+  ]
+}

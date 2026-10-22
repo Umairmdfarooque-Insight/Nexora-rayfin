@@ -1,0 +1,11 @@
+# Who holds which role (spec section 2.2). The approval service reads this file on every
+# request, so a change takes effect immediately. One person may hold several roles during
+# development. Entries are matched to the signed-in user's UPN, ignoring case.
+# Replace the placeholder with your own UPN before approving a contract.
+roles:
+  business_owner:    [user@contoso.com]
+  bi_engineer:       [user@contoso.com]
+  security_reviewer: [user@contoso.com]
+  project_reviewer:  [user@contoso.com]
+  data_engineer:     [user@contoso.com]
+  release_approver:  [user@contoso.com]

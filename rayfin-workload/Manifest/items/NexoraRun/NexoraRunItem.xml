@@ -1,0 +1,21 @@
+<!--
+  Best-effort reconstruction of the Extensibility Toolkit's per-item type
+  definition XML, from the item's type name and editor registration (the item
+  manifest's two halves: Product.json for identity/branding, and this file
+  plus NexoraRunItem.json for the item's own name, icon and path
+  configuration -- see fabric-hosting.md's platform-limits table and
+  README.md). Not yet confirmed against the real HelloWorld item template:
+  replace this with that template's own ItemManifest.xml, renamed, once this
+  project is dropped into the Starter-Kit (README.md "What's not included").
+-->
+<ItemManifestConfiguration>
+  <Item TypeName="NexoraRunItem" Category="Data">
+    <Workload WorkloadName="Nexora" />
+    <ItemName>
+      <Default>Nexora Run</Default>
+    </ItemName>
+    <ItemDescription>
+      <Default>A Nexora run: a business requirement being turned into an approved semantic model and report.</Default>
+    </ItemDescription>
+  </Item>
+</ItemManifestConfiguration>

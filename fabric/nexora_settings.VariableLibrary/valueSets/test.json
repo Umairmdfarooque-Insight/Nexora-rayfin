@@ -1,0 +1,6 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/valueSetProperties/1.0.0/schema.json",
+  "variableOverrides": [
+    { "name": "ENVIRONMENT", "value": "test" }
+  ]
+}

@@ -1,0 +1,10 @@
+# Business-critical terms. If one of these (or an alias) appears in a requirement without
+# a definition, the compiler always raises a blocking question; the LLM can't remove it.
+terms:
+  Revenue: [revenue, sales amount, turnover]
+  Margin: [margin, gross margin, profit margin]
+  Retention: [retention, churn]
+  Same-Store Sales: [same-store sales, like-for-like]
+# A term counts as defined when the requirement contains one of these with the term
+# (or an alias) filled in. Matching ignores case and extra whitespace.
+definition_patterns: ["{term} =", "{term} is defined as", "{term} means", "define {term} as"]

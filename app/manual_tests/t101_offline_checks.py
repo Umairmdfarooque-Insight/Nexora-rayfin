@@ -61,9 +61,12 @@ class FakeCursor:
         if "OBJECT_ID" in sql:
             self.db.execute(
                 "CREATE TABLE IF NOT EXISTS nexora_runs (run_id TEXT PRIMARY KEY, "
-                "state TEXT, created_at TEXT, updated_at TEXT, version INT, manifest TEXT)"
+                "state TEXT, created_at TEXT, updated_at TEXT, version INT, manifest TEXT, "
+                "active_job TEXT, lease_owner TEXT, lease_expires_at REAL)"
             )
             return
+        if "COL_LENGTH" in sql:
+            return  # migration no-op: the fake CREATE TABLE above already has these columns
         sql = sql.replace("dbo.", "")
         if "SELECT TOP (?)" in sql:
             sql = sql.replace("SELECT TOP (?)", "SELECT") + " LIMIT ?"

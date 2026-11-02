@@ -23,6 +23,9 @@ from app.observability.middleware import correlation
 from app.workflow.roles import load_roles
 
 RAYFIN_ORIGIN = "http://localhost:3000"
+# 3002 is allowed too: some machines already have something else bound to 3000
+# (e.g. a corporate agent service), so rayfin-ui may have to run on 3002 instead.
+RAYFIN_ORIGIN_FALLBACK = "http://localhost:3002"
 
 
 def _version() -> str:
@@ -60,7 +63,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title=f"{APP_NAME} API", version=VERSION, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[RAYFIN_ORIGIN],
+    allow_origins=[RAYFIN_ORIGIN, RAYFIN_ORIGIN_FALLBACK],
     allow_methods=["*"],
     allow_headers=["*"],
 )

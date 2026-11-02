@@ -1,15 +1,20 @@
 """python -m app.tools.deploy_home --env dev|test|prod [--create NAME] [--dry-run]
 
 Creates or updates the Nexora home workspace's items (CLAUDE.md "Target hosting",
-T-005) from the definitions committed under `fabric/`. Deployment is allowed only
-into a workspace whose name starts with "Nexora-": either the one in
-NEXORA_HOME_WORKSPACE_ID, or, the first time, the one named with --create.
+T-005) from the definitions committed under `fabric/`, in either the workspace in
+NEXORA_HOME_WORKSPACE_ID or, the first time, the one named with --create (reusing
+an existing workspace of that name if one already exists). Any workspace name is
+accepted -- the home workspace can be a dedicated one or an existing data
+workspace, at the caller's own choice.
 
-The exact Git/definition payload shapes for a few item types (UserDataFunctions,
-VariableLibrary) are reconstructed from public docs, not yet confirmed against a
-live tenant — see fabric-hosting.md's platform-limits table. Those items are
-created with the simplest payload that should work; a user running this against a
-real tenant for the first time is this task's own manual test (AC-2 to AC-6).
+The UserDataFunction and VariableLibrary payload shapes were confirmed, and fixed,
+against a live tenant on 2026-11-01: both need their own dedicated collection
+endpoint rather than the generic `POST /items` (UserDataFunction), and both were
+missing required definition parts (VariableLibrary's `settings.json`; UserDataFunction's
+`definition.json` and `resources/functions.json`, and its Python file had the wrong
+name -- Fabric requires `function_app.py`, not `function-app.py`). See
+fabric-hosting.md's platform-limits table for anything still open after that fix
+(e.g. whether a UDF can attach nexora_env, confirmed separately).
 """
 
 import argparse
@@ -67,18 +72,70 @@ def _folder_parts(folder: Path) -> list[dict]:
     return parts
 
 
-def notebook_definition() -> dict:
-    return {"format": "ipynb", "parts": _folder_parts(FABRIC_DIR / f"{STAGE_RUNNER_ITEM}.Notebook")}
+def notebook_definition(workspace_id: str, environment_id: str | None) -> dict:
+    """`notebook-content.ipynb` and `.platform`. `environment_id` (nexora_env's own
+    id, once it exists) is written into the notebook's `metadata.dependencies.environment`
+    so the job has the `nexora` wheel installed -- without it the notebook runs on
+    Fabric's bare base runtime, which has no `app` package at all (confirmed against
+    a live tenant, 2026-11-02: every job failed with `System_Cancelled_Session_
+    Statements_Failed` before ever reaching `app.fabric.job.run_job`). Whether
+    `updateDefinition` with `format: ipynb` actually applies this metadata is itself
+    unconfirmed (a community report describes it being honored only for the
+    `fabricGitSource` .py format) -- if the next deploy's manual test still fails the
+    same way, attach `nexora_env` to this item by hand in the portal instead (Notebook
+    ribbon -> Environment), the same kind of one-time step the UDF's Manage Connections
+    binding already needs."""
+    parts = _folder_parts(FABRIC_DIR / f"{STAGE_RUNNER_ITEM}.Notebook")
+    if environment_id:
+        for part in parts:
+            if part["path"] == "notebook-content.ipynb":
+                notebook = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                notebook.setdefault("metadata", {})["dependencies"] = {
+                    "environment": {"environmentId": environment_id, "workspaceId": workspace_id}
+                }
+                part["payload"] = base64.b64encode(
+                    (json.dumps(notebook, indent=1) + "\n").encode("utf-8")
+                ).decode("ascii")
+                break
+    return {"format": "ipynb", "parts": parts}
 
 
-def udf_definition() -> dict:
-    """`.platform` and `function-app.py` (T-102; `README.md` is repo documentation,
-    not part of the item). Not yet confirmed against a live tenant: the Manage
-    Connections binding (alias `nexora_control_db`, see
-    `fabric/nexora_api/function-app.py`'s module docstring) isn't part of this
-    payload -- it has to be added once, by hand, in the portal after this item
-    exists, since connections aren't Git/definition-trackable content."""
+def udf_definition(wheel: Path | None = None) -> dict:
+    """`definition.json`, `resources/functions.json`, `function_app.py` and `.platform`
+    (T-102; `README.md` is repo documentation, not part of the item) -- confirmed against
+    a live tenant (2026-11-01) to be the real required parts, not the `.platform` plus
+    Python-file-only payload T-102 originally shipped. The Manage Connections binding
+    (alias `nexoracontroldb`, see `fabric/nexora_api/function_app.py`'s module
+    docstring) isn't part of this payload -- it has to be added once, by hand, in the
+    portal after this item exists, since connections aren't Git/definition-trackable
+    content.
+
+    A UDF has no Environment to attach (confirmed 2026-11-02: unlike a notebook,
+    there's nothing in this item's definition shape that references nexora_env --
+    `call`/`me` failed at invocation with a generic `NotFound` until this was fixed).
+    The `app` package has to reach it as its own private library wheel instead
+    (`privateLibraries/<wheel>.whl`, declared in `definition.json`'s
+    `libraries.private`, per Microsoft's UserDataFunctionDefinition reference) --
+    `wheel` is the same `nexora-*.whl` `deploy()` already builds for nexora_env."""
     parts = [p for p in _folder_parts(FABRIC_DIR / API_ITEM) if p["path"] != "README.md"]
+
+    if wheel is not None:
+        for part in parts:
+            if part["path"] == "definition.json":
+                payload = json.loads(base64.b64decode(part["payload"]).decode("utf-8"))
+                payload.setdefault("libraries", {})["private"] = [{"name": wheel.name, "type": "WHEEL"}]
+                part["payload"] = base64.b64encode(
+                    (json.dumps(payload, indent=2) + "\n").encode("utf-8")
+                ).decode("ascii")
+                break
+        parts.append(
+            {
+                "path": f"privateLibraries/{wheel.name}",
+                "payload": base64.b64encode(wheel.read_bytes()).decode("ascii"),
+                "payloadType": "InlineBase64",
+            }
+        )
+
     return {"parts": parts}
 
 
@@ -111,9 +168,6 @@ def resolve_target_workspace(
     write_client: FabricItemsClient, read_client: FabricApiClient, create_name: str | None
 ) -> dict:
     if create_name:
-        if not create_name.startswith("Nexora-"):
-            raise BadArguments(f"--create {create_name!r} must start with 'Nexora-'; nothing deployed")
-
         matches = [w for w in read_client.list_workspaces() if w["display_name"] == create_name]
         if matches:
             return write_client.get_workspace(matches[0]["id"])
@@ -138,9 +192,10 @@ def _previous_wheel_hash() -> str | None:
 
 
 def _sql_database_endpoint(item: dict | None) -> tuple[str | None, str | None]:
-    """Best-effort read of a SQLDatabase item's connection details. Not yet confirmed
-    against a live tenant: if the property names below don't match, the two settings
-    are left blank and a warning is printed, rather than guessing further."""
+    """Confirmed against a live tenant (2026-11-01): `item` must come from
+    FabricItemsClient.get_sql_database (the dedicated sqlDatabases/{id} endpoint),
+    not get_item_by_name's generic items list, which never carries `properties` at
+    all. `serverFqdn` already includes the `,1433` port suffix."""
     if not item:
         return None, None
     properties = item.get("properties") or {}
@@ -156,16 +211,33 @@ def deploy(client: FabricItemsClient, workspace_id: str, env: str, dry_run: bool
     def record(name: str, operation: str) -> None:
         results.append((name, operation))
 
+    previous_wheel_hash = _previous_wheel_hash()
+    build: dict | None = None
+    if not dry_run:
+        try:
+            build = package()
+        except PackageError as error:
+            raise DeployError(str(error)) from None
+
     env_result = client.upsert_item(workspace_id, ENVIRONMENT_ITEM, "Environment", dry_run=dry_run)
     record(ENVIRONMENT_ITEM, env_result["operation"])
 
-    api_result = client.upsert_item(
-        workspace_id, API_ITEM, "UserDataFunctions", definition=udf_definition(), dry_run=dry_run
-    )
-    record(API_ITEM, api_result["operation"])
+    # A failure here is caught and reported rather than blocking every other item, since
+    # the UDF definition shape needed more live-tenant fixing than the other item types.
+    try:
+        wheel = build["wheel"] if build else None
+        api_result = client.upsert_user_data_function(workspace_id, API_ITEM, udf_definition(wheel), dry_run=dry_run)
+        record(API_ITEM, api_result["operation"])
+    except (FabricOperationFailed, NameConflict) as error:
+        record(API_ITEM, f"FAILED: {error}")
+        warnings.append(f"{API_ITEM} was not deployed: {error}")
 
     notebook_result = client.upsert_item(
-        workspace_id, STAGE_RUNNER_ITEM, "Notebook", definition=notebook_definition(), dry_run=dry_run
+        workspace_id,
+        STAGE_RUNNER_ITEM,
+        "Notebook",
+        definition=notebook_definition(workspace_id, env_result["item_id"]),
+        dry_run=dry_run,
     )
     record(STAGE_RUNNER_ITEM, notebook_result["operation"])
 
@@ -182,9 +254,14 @@ def deploy(client: FabricItemsClient, workspace_id: str, env: str, dry_run: bool
         "NEXORA_HOME_WORKSPACE_ID": workspace_id,
         "NEXORA_CONTROL_LAKEHOUSE_ID": lakehouse_result["item_id"] or "",
         "NEXORA_STAGE_RUNNER_ID": notebook_result["item_id"] or "",
+        # Confirmed against a live tenant (2026-11-02): ARTIFACT_STORE defaults to "local"
+        # (app/store/factory.py), which inside a job means the Spark driver's own ephemeral
+        # disk -- invisible to the UDF reading the same run's files back. A home workspace
+        # always means the control Lakehouse exists, so this is always "onelake" here.
+        "ARTIFACT_STORE": "onelake",
     }
 
-    db_item = client.get_item_by_name(workspace_id, CONTROL_DB_ITEM, "SQLDatabase") if not dry_run else None
+    db_item = client.get_sql_database(workspace_id, db_result["item_id"]) if not dry_run and db_result["item_id"] else None
     server, database = _sql_database_endpoint(db_item)
     if server and database:
         overrides["FABRIC_CONTROL_DB_SERVER"] = server
@@ -195,22 +272,22 @@ def deploy(client: FabricItemsClient, workspace_id: str, env: str, dry_run: bool
             "set FABRIC_CONTROL_DB_SERVER and FABRIC_CONTROL_DB_NAME in nexora_settings by hand."
         )
 
-    settings_result = client.upsert_item(
-        workspace_id,
-        SETTINGS_ITEM,
-        "VariableLibrary",
-        definition=variable_library_definition(env, overrides),
-        dry_run=dry_run,
-    )
-    record(SETTINGS_ITEM, settings_result["operation"])
+    try:
+        settings_result = client.upsert_item(
+            workspace_id,
+            SETTINGS_ITEM,
+            "VariableLibrary",
+            definition=variable_library_definition(env, overrides),
+            dry_run=dry_run,
+        )
+        record(SETTINGS_ITEM, settings_result["operation"])
+        if not dry_run and settings_result["item_id"]:
+            client.set_active_value_set(workspace_id, settings_result["item_id"], env)
+    except (FabricOperationFailed, NameConflict) as error:
+        record(SETTINGS_ITEM, f"FAILED: {error}")
+        warnings.append(f"{SETTINGS_ITEM} was not deployed: {error}")
 
     if not dry_run:
-        previous_wheel_hash = _previous_wheel_hash()
-        try:
-            build = package()
-        except PackageError as error:
-            raise DeployError(str(error)) from None
-
         if build["manifest"] and json.loads(build["manifest"].read_text(encoding="utf-8"))["wheel_hash"] != previous_wheel_hash:
             client.upload_environment_library(workspace_id, env_result["item_id"], build["wheel"])
             client.publish_environment(workspace_id, env_result["item_id"])
@@ -250,11 +327,6 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         workspace = resolve_target_workspace(write_client, read_client, args.create)
-
-        if not workspace["display_name"].startswith("Nexora-"):
-            raise BadArguments(
-                f"{workspace['display_name']!r} is not a Nexora- workspace; nothing deployed"
-            )
     except BadArguments as error:
         print(error, file=sys.stderr)
         return 2
@@ -274,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, operation in results:
         print(f"{name}: {operation}")
 
-    return 0
+    return 1 if any(operation.startswith("FAILED") for _, operation in results) else 0
 
 
 if __name__ == "__main__":

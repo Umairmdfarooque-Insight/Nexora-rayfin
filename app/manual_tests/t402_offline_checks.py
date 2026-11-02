@@ -177,8 +177,8 @@ def main() -> None:
         check("Feasibility.json is saved and registered", (runs_root / rid / "Feasibility.json").is_file() and artifact.version == 1 and artifact.status == "draft"
               and "SourceResolution" in artifact.based_on)
         payload = json.loads(llm.calls[0][1])
-        check("the model got KPI definitions and column names and types only", set(payload) == {"kpis", "available_columns"} and base.SECRET_NAME not in llm.calls[0][1]
-              and all(set(c) == {"column", "type"} for c in payload["available_columns"]) and {c["column"] for c in payload["available_columns"]} == {LINE, STATUS})
+        check("the model got KPI definitions and column names, types and descriptions only", set(payload) == {"kpis", "available_columns"} and base.SECRET_NAME not in llm.calls[0][1]
+              and all(set(c) == {"column", "type", "description"} for c in payload["available_columns"]) and {c["column"] for c in payload["available_columns"]} == {LINE, STATUS})
 
         # deterministic: same inputs, same file, one model call
         first = (runs_root / rid / "Feasibility.json").read_bytes()

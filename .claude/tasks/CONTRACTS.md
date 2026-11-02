@@ -169,6 +169,7 @@ A reservation that never got a `job_instance_id` within 10 minutes is released (
 | `POST /runs`, `GET /runs`, `GET /runs/{id}`, `GET /runs/{id}/artifacts` | udf | T-102 |
 | `POST /runs/{id}/jobs`, `GET /runs/{id}/jobs/{job_id}` | udf | T-102 |
 | `GET /fabric/workspaces`, `GET /fabric/workspaces/{id}/lakehouses` | ui (Fabric REST with the user's token, pickers only) | T-103 |
+| `GET /fabric/workspaces/{id}/lakehouses/{id}/schemas`, `.../schemas/{schema}/tables` | ui (OneLake REST with the user's token, pickers only; local-dev proxy in `app/api/fabric.py`) | 2026-11-01 note below |
 | `PUT /runs/{id}/scope` | job | T-103 |
 | `POST /runs/{id}/compile` | job | T-202 |
 | `POST /runs/{id}/questions/{qid}/answer` | job (it recompiles) | T-203 |
@@ -176,6 +177,7 @@ A reservation that never got a `job_instance_id` within 10 minutes is released (
 | `POST /runs/{id}/approvals` | udf; **job** when `action` is `REGENERATE` | T-204, T-304, T-403, T-405, T-507, T-604, T-702 |
 | `GET /runs/{id}/approvals`, `POST /runs/{id}/gates/G1/check`, `POST /runs/{id}/gates/G2/check`, `POST /runs/{id}/gates/G3/check` | udf | T-204, T-304, T-405 |
 | `POST /runs/{id}/harvest`, `POST /runs/{id}/profile`, `POST /runs/{id}/relationships/analyze` | job | T-301, T-302, T-303 |
+| `POST /runs/{id}/column-definitions` | udf (pure control-plane write, no Fabric/source token needed) | 2026-11-01 note below |
 | `GET /runs/{id}/inventory`, `GET /runs/{id}/relationships` | udf | T-301, T-303 |
 | `POST /runs/{id}/exceptions`, `POST /runs/{id}/data-gaps` | udf | T-304 |
 | `POST /runs/{id}/plan/sources`, `POST /runs/{id}/plan/feasibility`, `POST /runs/{id}/plan/bridges` | job | T-401, T-402, T-403 |

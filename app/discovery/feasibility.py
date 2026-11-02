@@ -84,8 +84,22 @@ def available_columns(resolution: SourceResolution, inventory: MetadataInventory
     return dict(sorted(out.items()))
 
 
-def build_payload(contract, columns: dict[str, str | None]) -> dict:
-    """What the model sees: the KPI definitions and the mapped column names and types."""
+def available_column_descriptions(resolution: SourceResolution, inventory: MetadataInventory) -> dict[str, str | None]:
+    """"schema.table.column" (lowercased) -> description, for the columns available_columns
+    maps -- the optional, user-uploaded (or Fabric comment) description, if any."""
+    return {
+        f"{t.schema_name}.{t.table_name}.{c.name}".lower(): c.description
+        for t in inventory.tables
+        for c in t.columns
+    }
+
+
+def build_payload(
+    contract, columns: dict[str, str | None], descriptions: dict[str, str | None] | None = None
+) -> dict:
+    """What the model sees: the KPI definitions and the mapped column names, types and
+    (when available) descriptions."""
+    descriptions = descriptions or {}
     return {
         "kpis": [
             {
@@ -97,7 +111,10 @@ def build_payload(contract, columns: dict[str, str | None]) -> dict:
             }
             for k in contract.kpis
         ],
-        "available_columns": [{"column": name, "type": data_type} for name, data_type in columns.items()],
+        "available_columns": [
+            {"column": name, "type": data_type, "description": descriptions.get(name.lower())}
+            for name, data_type in columns.items()
+        ],
     }
 
 

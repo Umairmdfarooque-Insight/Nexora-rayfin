@@ -3,9 +3,9 @@
 # development. Entries are matched to the signed-in user's UPN, ignoring case.
 # Replace the placeholder with your own UPN before approving a contract.
 roles:
-  business_owner:    [user@contoso.com]
-  bi_engineer:       [user@contoso.com]
-  security_reviewer: [user@contoso.com]
-  project_reviewer:  [user@contoso.com]
-  data_engineer:     [user@contoso.com]
-  release_approver:  [user@contoso.com]
+  business_owner:    [user@contoso.com, dev@localhost]
+  bi_engineer:       [user@contoso.com, dev@localhost]
+  security_reviewer: [user@contoso.com, dev@localhost]
+  project_reviewer:  [user@contoso.com, dev@localhost]
+  data_engineer:     [user@contoso.com, dev@localhost]
+  release_approver:  [user@contoso.com, dev@localhost]

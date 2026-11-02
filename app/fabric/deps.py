@@ -35,7 +35,7 @@ _store_override: contextvars.ContextVar["RunStore | None"] = contextvars.Context
 
 
 def set_store_override(run_store: "RunStore | None") -> None:
-    """`nexora_api`'s `function-app.py` uses this: a UDF has no user-delegated
+    """`nexora_api`'s `function_app.py` uses this: a UDF has no user-delegated
     Fabric token (fabric-hosting.md), so it can't build a `SqlRunStore` the
     usual way (`app.auth.get_token`); instead it builds one from its own
     Manage Connections-injected `fn.FabricSqlConnection` and sets it here for

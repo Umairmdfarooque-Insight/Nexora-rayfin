@@ -145,7 +145,10 @@ def main() -> None:
         inv_path = runs_root / rid / "MetadataInventory.json"
         inv = json.loads(inv_path.read_text(encoding="utf-8"))
         check("inventory file written, v1", inv["version"] == 1 and inv["run_id"] == rid and inv["schema_version"] == 1)
-        check("scope recorded", inv["scope"] == {"workspace_id": WS, "lakehouse_id": LH, "schemas": ["saleslt"]})
+        check(
+            "scope recorded",
+            inv["scope"] == {"workspace_id": WS, "lakehouse_id": LH, "schemas": ["saleslt"], "tables": []},
+        )
         names = [t["table_name"] for t in inv["tables"]]
         check("failed tables are not in tables, others are", names == ["NoColumns", "SalesLT_Customer", "SalesLT_Product"])
         check(

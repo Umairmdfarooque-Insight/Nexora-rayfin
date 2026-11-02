@@ -256,6 +256,9 @@ class ScopeRequest(BaseModel):
     schemas: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]] = Field(
         default_factory=list
     )
+    tables: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]] = Field(
+        default_factory=list
+    )
 
 
 class WorkspaceItem(BaseModel):
@@ -287,6 +290,7 @@ class ArtifactItem(BaseModel):
 
 class HarvestRequest(BaseModel):
     schemas: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]] | None = None
+    tables: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]] | None = None
 
 
 class HarvestSummary(BaseModel):
@@ -299,6 +303,25 @@ class HarvestResponse(BaseModel):
     summary: HarvestSummary
     artifact: ArtifactItem
     warnings: list[str] = Field(default_factory=list)
+
+
+class ColumnDefinitionsUploadRequest(BaseModel):
+    filename: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    content_base64: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class ColumnDefinitionsUploadResponse(BaseModel):
+    entries: int
+    warnings: list[str] = Field(default_factory=list)
+    artifact: ArtifactItem
+
+
+class SchemaListResponse(BaseModel):
+    schemas: list[str]
+
+
+class TableListResponse(BaseModel):
+    tables: list[str]
 
 
 class ProfileRequest(BaseModel):

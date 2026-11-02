@@ -37,6 +37,7 @@ MAX_PAGES = 1000
 SEMANTIC_MODEL = "SemanticModel"
 NOTEBOOK = "Notebook"
 REPORT = "Report"
+USER_DATA_FUNCTION = "UserDataFunction"
 
 
 class TargetNotAllowed(Exception):
@@ -222,6 +223,14 @@ class FabricItemsClient:
                 return item
         return None
 
+    def get_sql_database(self, workspace_id: str, item_id: str) -> dict:
+        """The SQLDatabase item's own `properties` (serverFqdn, databaseName, …) --
+        confirmed against a live tenant: the generic items list (get_item_by_name)
+        never carries these, only the dedicated `sqlDatabases/{id}` endpoint does."""
+        self._check_target(workspace_id)
+        response = self._call("GET", f"{FABRIC_API}/workspaces/{workspace_id}/sqlDatabases/{item_id}")
+        return _body(response)
+
     def wait_for_operation(self, location_url: str, timeout_s: int = 600) -> dict:
         deadline = self._clock() + timeout_s
         while True:
@@ -258,20 +267,39 @@ class FabricItemsClient:
                 )
             self.wait_for_operation(location)
 
-    def _upsert(self, workspace_id: str, display_name: str, item_type: str, collection: str, definition: dict, label: str) -> dict:
-        """Create the item, or update its definition if one with that name exists (any case)."""
+    def _upsert(
+        self,
+        workspace_id: str,
+        display_name: str,
+        item_type: str,
+        collection: str,
+        definition: dict,
+        label: str,
+        dry_run: bool = False,
+    ) -> dict:
+        """Create the item, or update its definition if one with that name exists (any case).
+        `dry_run=True` only reads: it reports what would happen without creating or updating
+        anything."""
         self._check_target(workspace_id)
         base = f"{FABRIC_API}/workspaces/{workspace_id}/{collection}"
 
         same_name = self._named(self._list_items(workspace_id), display_name)
-        for item in same_name:
-            if item.get("type") != item_type:
-                raise NameConflict(display_name, str(item.get("type", "unknown")))
-        if same_name:
-            item_id = same_name[0]["id"]
+        matching = [item for item in same_name if item.get("type") == item_type]
+        # Fabric auto-creates companion items with the same display name as their parent
+        # (a Lakehouse or SQLDatabase each get a same-named SQLEndpoint, an Eventhouse a
+        # same-named KQLDatabase); that alone isn't a real name conflict.
+        if not matching and same_name:
+            raise NameConflict(display_name, str(same_name[0].get("type", "unknown")))
+        if matching:
+            item_id = matching[0]["id"]
+            if dry_run:
+                return {"item_id": item_id, "operation": "updated"}
             response = self._call("POST", f"{base}/{item_id}/updateDefinition", {"definition": definition})
             self._finish(response)
             return {"item_id": item_id, "operation": "updated"}
+
+        if dry_run:
+            return {"item_id": None, "operation": "created"}
 
         response = self._call("POST", base, {"displayName": display_name, "definition": definition})
         self._finish(response)
@@ -309,6 +337,19 @@ class FabricItemsClient:
             "parts": [{"path": "notebook-content.ipynb", "payload": payload, "payloadType": "InlineBase64"}],
         }
         return self._upsert(workspace_id, display_name, NOTEBOOK, "notebooks", definition, "notebook")
+
+    def upsert_user_data_function(
+        self, workspace_id: str, display_name: str, definition: dict, dry_run: bool = False
+    ) -> dict:
+        """Create or update a User Data Function. Unlike Lakehouse/SQLDatabase/Eventhouse/
+        Environment/VariableLibrary, this item type is not createable through the generic
+        `POST /items` endpoint (confirmed against a live tenant: it returns `InvalidInput:
+        invalid input parameter: Type`) -- it needs its own `userDataFunctions` collection,
+        the same pattern as upsert_semantic_model/upsert_report/upsert_notebook."""
+        self._check_target(workspace_id)
+        return self._upsert(
+            workspace_id, display_name, USER_DATA_FUNCTION, "userDataFunctions", definition, "UDF", dry_run=dry_run
+        )
 
     def run_notebook(self, workspace_id: str, item_id: str, timeout_s: int = 900) -> dict:
         """Run a notebook and wait for it. Returns {"run_id"}; a run that doesn't succeed raises
@@ -416,19 +457,22 @@ class FabricItemsClient:
         dry_run: bool = False,
     ) -> dict:
         """Create or update a generic item (one without a dedicated `_upsert` helper
-        above): Lakehouse, SQLDatabase, Eventhouse, Environment, UserDataFunctions,
+        above): Lakehouse, SQLDatabase, Eventhouse, Environment, UserDataFunction,
         VariableLibrary. Returns `{"item_id", "operation": "created"|"updated"|"unchanged"}`;
         "unchanged" when the item already exists and either has no `definition` to
         compare (most data items) or an unchanged one. `dry_run=True` only reads: it
         reports what would happen without creating, updating or publishing anything."""
         self._check_target(workspace_id)
         same_name = self._named(self._list_items(workspace_id), display_name)
-        for item in same_name:
-            if item.get("type") != item_type:
-                raise NameConflict(display_name, str(item.get("type", "unknown")))
+        matching = [item for item in same_name if item.get("type") == item_type]
+        # Fabric auto-creates companion items with the same display name as their parent
+        # (a Lakehouse or SQLDatabase each get a same-named SQLEndpoint, an Eventhouse a
+        # same-named KQLDatabase); that alone isn't a real name conflict.
+        if not matching and same_name:
+            raise NameConflict(display_name, str(same_name[0].get("type", "unknown")))
 
-        if same_name:
-            item_id = same_name[0]["id"]
+        if matching:
+            item_id = matching[0]["id"]
             if definition is None:
                 return {"item_id": item_id, "operation": "unchanged"}
             try:
@@ -466,6 +510,20 @@ class FabricItemsClient:
                 )
             item_id = created["id"]
         return {"item_id": item_id, "operation": "created"}
+
+    def set_active_value_set(self, workspace_id: str, variable_library_id: str, value_set_name: str) -> None:
+        """A VariableLibrary always has exactly one *active* value set, set through this
+        item-properties PATCH -- separate from `upsert_item`'s `updateDefinition`, which only
+        writes a value set's content. Confirmed against a live tenant (2026-11-02): writing
+        `valueSets/<env>.json` through `updateDefinition` alone never makes a job see those
+        values (`notebookutils.variableLibrary.getLibrary()` reads the active set only), which
+        looked like a config-propagation failure until this was found."""
+        self._check_target(workspace_id)
+        self._call(
+            "PATCH",
+            f"{FABRIC_API}/workspaces/{workspace_id}/variableLibraries/{variable_library_id}",
+            {"properties": {"activeValueSetName": value_set_name}},
+        )
 
     def upload_environment_library(self, workspace_id: str, environment_id: str, wheel_path: Path) -> None:
         """Upload `wheel_path` as a custom library to the Environment's staging area."""

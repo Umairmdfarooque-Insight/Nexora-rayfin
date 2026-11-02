@@ -64,6 +64,7 @@ def harvest_run(
     run_id: str,
     connector_for_scope: Callable[[RunScope], Any],
     schemas: list[str] | None = None,
+    tables: list[str] | None = None,
     actor: str = "system",
 ) -> tuple[Run, MetadataInventory]:
     """Harvest the run's scope into the next MetadataInventory version.
@@ -72,6 +73,8 @@ def harvest_run(
     run back to REQUIREMENT_APPROVED). Nothing is written if a schema is unknown or the
     Lakehouse can't be listed.
     """
+    from app.workflow import column_definitions  # deferred: column_definitions imports this module
+
     run = store.get(run_id)
     if run.state not in HARVEST_STATES:
         raise WrongState("Harvesting metadata", run.state, HARVEST_STATES)
@@ -81,9 +84,13 @@ def harvest_run(
     connector = connector_for_scope(run.scope)
     wanted = list(schemas or run.scope.schemas)
     resolved = resolve_schemas(connector, wanted)
-    tables, errors, warnings = harvest_tables(connector, resolved)
+    wanted_tables = tables if tables is not None else run.scope.tables
+    harvested_tables, errors, warnings = harvest_tables(connector, resolved, wanted_tables or None)
 
     run_dir = Path(runs_root) / run_id
+    definitions = column_definitions.load_column_definitions(runs_root, run_id)
+    warnings = [*warnings, *column_definitions.apply_to_tables(definitions, harvested_tables)]
+
     inventories_dir = run_dir / "inventories"
     version = _next_version(run, inventories_dir)
     inventory = MetadataInventory(
@@ -95,8 +102,9 @@ def harvest_run(
             workspace_id=run.scope.workspace_id,
             lakehouse_id=run.scope.lakehouse_id,
             schemas=resolved,
+            tables=sorted(wanted_tables, key=str.casefold) if wanted_tables else [],
         ),
-        tables=tables,
+        tables=harvested_tables,
         relationship_evidence=[],
         errors=errors,
         warnings=warnings,

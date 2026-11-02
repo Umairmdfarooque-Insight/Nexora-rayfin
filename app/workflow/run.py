@@ -52,6 +52,7 @@ class RunScope(BaseModel):
     lakehouse_id: str
     lakehouse_name: str
     schemas: list[str] = Field(default_factory=list)
+    tables: list[str] = Field(default_factory=list)  # "schema.table", same shape as the profiler's
     sql_endpoint: SqlEndpoint | None = None
 
 

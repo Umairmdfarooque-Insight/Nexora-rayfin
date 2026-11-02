@@ -275,3 +275,119 @@ class OneLakeArtifactStore:
             return None
         candidate = _check_rel(rel)
         return (self.MOUNT / run_id / candidate).resolve()
+
+
+class UdfLakehouseArtifactStore:
+    """`Files/runs/<run_id>/…` of the control Lakehouse, from inside a User Data
+    Function. A UDF has no user-delegated Fabric token at all (fabric-hosting.md),
+    so `OneLakeArtifactStore`'s own raw-REST calls (which need a bearer token) can
+    never work here -- confirmed against a live tenant, 2026-11-02: `app.config`
+    can't read `nexora_settings` either (no `notebookutils`), so even the home
+    workspace and control Lakehouse ids read as unset inside a UDF. The one thing
+    a UDF *can* reach without a token is a Manage Connections-injected
+    `fn.FabricLakehouseClient` (the same pattern already used for the SQL-backed
+    `RunStore`, `app.fabric.deps.set_store_override`): `lakehouse_client` is that
+    object, and `connectToFiles()` gives a standard `azure-storage-file-datalake`
+    `FileSystemClient`, reused for every call this store makes.
+    """
+
+    LOCK_WAIT_SECONDS = DEFAULT_WAIT_SECONDS
+
+    def __init__(self, lakehouse_client):
+        self._fs = lakehouse_client.connectToFiles()
+
+    def _rel(self, run_id: str, rel: str) -> str:
+        candidate = _check_rel(rel)
+        parts = [p for p in ("runs", run_id, str(candidate)) if p and p != "."]
+        return "/".join(parts)
+
+    def read_bytes(self, run_id: str, rel: str) -> bytes:
+        from azure.core.exceptions import ResourceNotFoundError  # noqa: PLC0415  (only installed in Fabric)
+
+        try:
+            return self._fs.get_file_client(self._rel(run_id, rel)).download_file().readall()
+        except ResourceNotFoundError:
+            raise NotFound(run_id, rel) from None
+
+    def write_atomic(self, run_id: str, rel: str, data: bytes) -> None:
+        # DataLakeFileClient.upload_data(overwrite=True) is a single call (create,
+        # append, flush), so a reader never observes a partial write.
+        self._fs.get_file_client(self._rel(run_id, rel)).upload_data(data, overwrite=True)
+
+    def _lock_path(self, run_id: str) -> str:
+        return self._rel(run_id, ".lock")
+
+    def _acquire_lease(self, run_id: str, owner: str, seconds: int) -> None:
+        from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError  # noqa: PLC0415
+
+        lock_client = self._fs.get_file_client(self._lock_path(run_id))
+        deadline = time.monotonic() + self.LOCK_WAIT_SECONDS
+        while True:
+            payload = json.dumps({"owner": owner, "expires_at": time.time() + seconds}).encode("utf-8")
+            try:
+                lock_client.upload_data(payload, overwrite=False)
+                return
+            except ResourceExistsError:
+                pass
+            try:
+                current = json.loads(lock_client.download_file().readall())
+            except (ResourceNotFoundError, ValueError):
+                current = None
+            if current is None or float(current.get("expires_at", 0)) < time.time():
+                logger.warning(
+                    "UdfLakehouseArtifactStore lease for run %s past its expiry; taking it over (new owner=%s)",
+                    run_id,
+                    owner,
+                )
+                try:
+                    lock_client.delete_file()
+                except ResourceNotFoundError:
+                    pass
+                continue
+            if time.monotonic() >= deadline:
+                raise LeaseBusy(run_id, current.get("owner"))
+            time.sleep(0.2)
+
+    def _release_lease(self, run_id: str) -> None:
+        from azure.core.exceptions import ResourceNotFoundError  # noqa: PLC0415
+
+        try:
+            self._fs.get_file_client(self._lock_path(run_id)).delete_file()
+        except ResourceNotFoundError:
+            pass
+
+    def append_line(self, run_id: str, rel: str, line: str) -> None:
+        owner = f"append:{uuid.uuid4()}"
+        self._acquire_lease(run_id, owner, seconds=APPEND_LEASE_SECONDS)
+        try:
+            try:
+                existing = self.read_bytes(run_id, rel)
+            except NotFound:
+                existing = b""
+            existing += (line.rstrip("\n") + "\n").encode("utf-8")
+            self.write_atomic(run_id, rel, existing)
+        finally:
+            self._release_lease(run_id)
+
+    def exists(self, run_id: str, rel: str) -> bool:
+        return self._fs.get_file_client(self._rel(run_id, rel)).exists()
+
+    def list(self, run_id: str, prefix: str) -> list[str]:
+        directory = self._rel(run_id, prefix)
+        run_prefix = self._rel(run_id, "") + "/"
+        return [
+            p.name[len(run_prefix) :]
+            for p in self._fs.get_paths(path=directory, recursive=True)
+            if not p.is_directory
+        ]
+
+    def copy_tree(self, run_id: str, src: "str | Path", dst: str) -> None:
+        source = Path(src)
+        files = [source] if source.is_file() else [p for p in source.rglob("*") if p.is_file()]
+        for file in files:
+            rel = "" if source.is_file() else str(file.relative_to(source)).replace("\\", "/")
+            target_rel = f"{dst}/{rel}".strip("/") if rel else dst
+            self.write_atomic(run_id, target_rel, file.read_bytes())
+
+    def local_path(self, run_id: str, rel: str) -> Path | None:
+        return None

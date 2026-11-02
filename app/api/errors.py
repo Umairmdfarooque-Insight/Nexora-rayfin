@@ -55,7 +55,8 @@ from app.workflow.model_stage import ModelSpecInvalid
 from app.workflow.report_stage import ReportPlanInvalid
 from app.workflow.report_review import RegenerationOutOfScope
 from app.workflow.plan_review import PlanEditInvalid
-from app.workflow.scope import SchemaNotFound, ScopeLocked
+from app.workflow.scope import SchemaNotFound, ScopeLocked, TableNotFound
+from app.workflow.column_definitions import InvalidColumnDefinitionsFile
 from app.security.llm_guard import PayloadRejected
 from app.security.run_access import RunAccessDenied
 from app.workflow.promotion import HashMismatch, TargetBusy
@@ -325,6 +326,14 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(SchemaNotFound)
     async def schema_not_found(request: Request, exc: SchemaNotFound):
         return error_response(404, "SCHEMA_NOT_FOUND", str(exc), {"schema": exc.schema})
+
+    @app.exception_handler(TableNotFound)
+    async def table_not_found(request: Request, exc: TableNotFound):
+        return error_response(404, "TABLE_NOT_FOUND", str(exc), {"schema": exc.schema, "table": exc.table})
+
+    @app.exception_handler(InvalidColumnDefinitionsFile)
+    async def invalid_column_definitions_file(request: Request, exc: InvalidColumnDefinitionsFile):
+        return error_response(400, "INVALID_FILE", str(exc))
 
     @app.exception_handler(TargetNotAllowed)
     async def target_not_allowed(request: Request, exc: TargetNotAllowed):

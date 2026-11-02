@@ -1,10 +1,11 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/variableLibraryProperties/1.0.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/variableLibrary/definition/variables/1.0.0/schema.json",
   "variables": [
     { "name": "APP_NAME", "type": "String", "note": "", "value": "Nexora" },
     { "name": "UI_APP_NAME", "type": "String", "note": "", "value": "Rayfin" },
     { "name": "ENVIRONMENT", "type": "String", "note": "", "value": "development" },
     { "name": "RUN_STORE", "type": "String", "note": "", "value": "fabric_sql" },
+    { "name": "ARTIFACT_STORE", "type": "String", "note": "set by deploy_home: onelake once the home workspace exists", "value": "" },
     { "name": "NEXORA_HOME_WORKSPACE_ID", "type": "String", "note": "set by deploy_home", "value": "" },
     { "name": "NEXORA_CONTROL_LAKEHOUSE_ID", "type": "String", "note": "set by deploy_home", "value": "" },
     { "name": "NEXORA_STAGE_RUNNER_ID", "type": "String", "note": "set by deploy_home", "value": "" },

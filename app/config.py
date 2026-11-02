@@ -173,3 +173,16 @@ NEXORA_STAGE_RUNNER_ID = get_optional_setting("NEXORA_STAGE_RUNNER_ID")
 # CLI still run; the API refuses every protected request until they are set.
 ENTRA_TENANT_ID = get_optional_setting("ENTRA_TENANT_ID")
 ENTRA_API_CLIENT_ID = get_optional_setting("ENTRA_API_CLIENT_ID")
+
+# Local-only escape hatch (not a task, a developer convenience): set true to keep the
+# real ENTRA_* values in place (e.g. an app registration awaiting tenant-admin consent)
+# while still testing the full app as yourself. With this on, app.api.security skips
+# bearer-token validation (a synthetic dev@localhost principal is used instead) and
+# app.api.deps routes every Fabric/OneLake/SQL/Power BI call through app.auth.get_token
+# (your own interactive sign-in) instead of OBO. Refused outside ENVIRONMENT=development.
+# Leave unset once your Entra app registration is consented and the UI is wired for MSAL.
+NEXORA_LOCAL_AUTH_BYPASS = (get_optional_setting("NEXORA_LOCAL_AUTH_BYPASS") or "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)

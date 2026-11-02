@@ -64,6 +64,14 @@ export default function NewRunPage() {
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
   const [loadingLakehouses, setLoadingLakehouses] = useState(false);
 
+  const [schemas, setSchemas] = useState<string[] | null>(null);
+  const [schemaName, setSchemaName] = useState("");
+  const [tables, setTables] = useState<string[] | null>(null);
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [loadingSchemas, setLoadingSchemas] = useState(false);
+  const [loadingTables, setLoadingTables] = useState(false);
+  const [columnDefinitionsFile, setColumnDefinitionsFile] = useState<File | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [createdRunId, setCreatedRunId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -93,13 +101,17 @@ export default function NewRunPage() {
     setWorkspaceId(id);
     setLakehouseId("");
     setLakehouses(null);
+    setSchemas(null);
+    setSchemaName("");
+    setTables(null);
+    setSelectedTables([]);
     setFieldErrors((current) => ({ ...current, workspace_id: "", lakehouse_id: "" }));
     setLoadingLakehouses(true);
     try {
       const list = await api.listLakehouses(id);
       setLakehouses(list);
       if (list.length === 1) {
-        setLakehouseId(list[0].id);
+        void chooseLakehouse(list[0].id, list[0].display_name);
       }
     } catch (e) {
       setBanner({
@@ -109,6 +121,46 @@ export default function NewRunPage() {
       });
     } finally {
       setLoadingLakehouses(false);
+    }
+  }
+
+  async function chooseLakehouse(id: string, displayName: string) {
+    setLakehouseId(id);
+    setSchemas(null);
+    setSchemaName("");
+    setTables(null);
+    setSelectedTables([]);
+    if (!id) return;
+    setLoadingSchemas(true);
+    try {
+      setSchemas(await api.listSchemas(workspaceId, id, displayName));
+    } catch (e) {
+      setBanner({
+        title: "Couldn't load schemas.",
+        error: e as ApiError,
+        retry: () => void chooseLakehouse(id, displayName),
+      });
+    } finally {
+      setLoadingSchemas(false);
+    }
+  }
+
+  async function chooseSchema(name: string) {
+    setSchemaName(name);
+    setTables(null);
+    setSelectedTables([]);
+    if (!name) return;
+    setLoadingTables(true);
+    try {
+      setTables(await api.listTables(workspaceId, lakehouseId, lakehouseName, name));
+    } catch (e) {
+      setBanner({
+        title: "Couldn't load tables.",
+        error: e as ApiError,
+        retry: () => void chooseSchema(name),
+      });
+    } finally {
+      setLoadingTables(false);
     }
   }
 
@@ -138,7 +190,25 @@ export default function NewRunPage() {
         setCreatedRunId(runId);
       }
       if (workspaceId && lakehouseId) {
-        await api.setScope(runId, { workspace_id: workspaceId, lakehouse_id: lakehouseId });
+        await api.setScope(runId, {
+          workspace_id: workspaceId,
+          lakehouse_id: lakehouseId,
+          ...(schemaName ? { schemas: [schemaName] } : {}),
+          ...(selectedTables.length ? { tables: selectedTables.map((t) => `${schemaName}.${t}`) } : {}),
+        });
+      }
+      if (columnDefinitionsFile) {
+        try {
+          await api.uploadColumnDefinitions(runId, columnDefinitionsFile);
+        } catch (e) {
+          setBanner({
+            title: "The run was created, but the column definitions file couldn't be uploaded.",
+            error: e as ApiError,
+            runId,
+          });
+          setSubmitting(false);
+          return;
+        }
       }
       router.push(`/runs/${runId}`);
     } catch (e) {
@@ -182,7 +252,7 @@ export default function NewRunPage() {
           {banner.runId && (
             <>
               {" "}
-              <Link href={`/runs/${banner.runId}`}>Open the run without a scope</Link>
+              <Link href={`/runs/${banner.runId}`}>Open the run</Link>
             </>
           )}
         </ErrorBanner>
@@ -303,7 +373,10 @@ export default function NewRunPage() {
             value={lakehouseName}
             selectedOptions={lakehouseId ? [lakehouseId] : []}
             disabled={!workspaceId || loadingLakehouses || noLakehouses || submitting}
-            onOptionSelect={(_, data) => setLakehouseId(data.optionValue ?? "")}
+            onOptionSelect={(_, data) => {
+              const chosen = (lakehouses ?? []).find((l) => l.id === data.optionValue);
+              if (chosen) void chooseLakehouse(chosen.id, chosen.display_name);
+            }}
           >
             {(lakehouses ?? []).map((l) => (
               <Option key={l.id} value={l.id} text={l.display_name}>
@@ -311,6 +384,58 @@ export default function NewRunPage() {
               </Option>
             ))}
           </Dropdown>
+        </Field>
+
+        <Field
+          label="Schema (optional)"
+          hint={loadingSchemas ? "Loading schemas…" : "Leave unset to use every schema."}
+        >
+          <Dropdown
+            className={styles.dropdown}
+            placeholder={lakehouseId ? "All schemas" : "Select a Lakehouse first"}
+            value={schemaName}
+            selectedOptions={schemaName ? [schemaName] : []}
+            disabled={!lakehouseId || loadingSchemas || !schemas?.length || submitting}
+            onOptionSelect={(_, data) => void chooseSchema(data.optionValue ?? "")}
+          >
+            {(schemas ?? []).map((name) => (
+              <Option key={name} value={name} text={name}>
+                {name}
+              </Option>
+            ))}
+          </Dropdown>
+        </Field>
+
+        <Field
+          label="Tables (optional)"
+          hint={loadingTables ? "Loading tables…" : "Leave unset to use every table in the schema."}
+        >
+          <Dropdown
+            className={styles.dropdown}
+            multiselect
+            placeholder={schemaName ? "All tables" : "Select a schema first"}
+            selectedOptions={selectedTables}
+            disabled={!schemaName || loadingTables || !tables?.length || submitting}
+            onOptionSelect={(_, data) => setSelectedTables(data.selectedOptions)}
+          >
+            {(tables ?? []).map((name) => (
+              <Option key={name} value={name} text={name}>
+                {name}
+              </Option>
+            ))}
+          </Dropdown>
+        </Field>
+
+        <Field
+          label="Column definitions (optional)"
+          hint="A CSV or Excel file with table, column and definition columns. Helps the model understand ambiguous column names; never required."
+        >
+          <input
+            type="file"
+            accept=".csv,.xlsx"
+            disabled={locked || submitting}
+            onChange={(event) => setColumnDefinitionsFile(event.target.files?.[0] ?? null)}
+          />
         </Field>
 
         <div className={styles.actions}>

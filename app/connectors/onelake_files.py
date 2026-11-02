@@ -15,7 +15,9 @@ _TIMEOUT = 30
 
 
 def _url(workspace_id: str, item_id: str, path: str) -> str:
-    return f"{ONELAKE_DFS}/{workspace_id}/{item_id}/{path.lstrip('/')}"
+    # User-managed files live under an item's Files/ root in OneLake (Tables/ is the
+    # other, managed-tables root); the DFS API rejects a path with neither prefix.
+    return f"{ONELAKE_DFS}/{workspace_id}/{item_id}/Files/{path.lstrip('/')}"
 
 
 def _headers(token_provider: Callable[[], str] | None) -> dict:
@@ -126,8 +128,9 @@ def list_files(
     url = f"{ONELAKE_DFS}/{workspace_id}/{item_id}"
     paths: list[str] = []
     continuation: str | None = None
+    full_directory = "/".join(p for p in ("Files", directory.strip("/")) if p)
     while True:
-        params = {"resource": "filesystem", "recursive": "true", "directory": directory.strip("/")}
+        params = {"resource": "filesystem", "recursive": "true", "directory": full_directory}
         if continuation:
             params["continuation"] = continuation
         response = requests.get(url, params=params, headers=headers, timeout=_TIMEOUT)
@@ -136,7 +139,9 @@ def list_files(
         response.raise_for_status()
         body = response.json()
         paths.extend(
-            p["name"] for p in body.get("paths", []) if not p.get("isDirectory")
+            p["name"].removeprefix("Files/")
+            for p in body.get("paths", [])
+            if not p.get("isDirectory")
         )
         continuation = response.headers.get("x-ms-continuation")
         if not continuation:

@@ -70,17 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   if (status.kind === "unconfigured") {
-    return (
-      <div className={styles.center}>
-        <MessageBar intent="error" role="alert">
-          <MessageBarBody>
-            <MessageBarTitle>Sign-in is not configured.</MessageBarTitle>
-            Set {missingAuthSettings.join(", ")} in rayfin-ui/.env.local, then restart
-            the UI.
-          </MessageBarBody>
-        </MessageBar>
-      </div>
-    );
+    // In local development without Entra configured, allow bypass
+    return <>{children}</>;
   }
 
   if (status.kind === "error") {

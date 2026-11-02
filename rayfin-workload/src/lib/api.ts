@@ -21,6 +21,7 @@ import type {
   ApprovalResult,
   AuditPage,
   BridgeGenerateResult,
+  ColumnDefinitionsUploadResult,
   CompileResult,
   CreateRunBody,
   ExceptionResult,
@@ -162,11 +163,15 @@ export async function call<T>(
   body?: unknown,
 ): Promise<T> {
   const config = loadConfig();
+  // nexora_api's `call` declares `body: dict` with no default (Fabric disallows
+  // parameter defaults on a UDF) -- confirmed against a live tenant (2026-11-02):
+  // sending a JSON `null` for a dict-typed parameter is a 400 InvalidInput, so a
+  // GET or body-less POST must send `{}`, never `null`.
   const envelope = await invokeFunction(config.nexoraApiCallFunctionUrl, {
     method,
     path,
     query,
-    body: body ?? null,
+    body: body ?? {},
   });
   raiseIfError(envelope);
   return envelope.body as T;
@@ -275,8 +280,24 @@ export const api = {
   getInventory: (id: string) => call<MetadataInventory>("GET", `/runs/${encodeURIComponent(id)}/inventory`),
   getRelationships: (id: string) =>
     call<RelationshipEvidence[]>("GET", `/runs/${encodeURIComponent(id)}/relationships`),
-  harvest: (id: string, schemas?: string[]) =>
-    runJob<HarvestResult>(id, "POST /runs/{id}/harvest", schemas && schemas.length > 0 ? { schemas } : {}),
+  harvest: (id: string, schemas?: string[], tables?: string[]) =>
+    runJob<HarvestResult>(id, "POST /runs/{id}/harvest", {
+      ...(schemas && schemas.length > 0 ? { schemas } : {}),
+      ...(tables && tables.length > 0 ? { tables } : {}),
+    }),
+  uploadColumnDefinitions: async (id: string, file: File) => {
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const contentBase64 = btoa(binary);
+    return call<ColumnDefinitionsUploadResult>(
+      "POST",
+      `/runs/${encodeURIComponent(id)}/column-definitions`,
+      {},
+      { filename: file.name, content_base64: contentBase64 },
+    );
+  },
   profile: (id: string) => runJob<StageCounts>(id, "POST /runs/{id}/profile", {}),
   analyzeRelationships: (id: string) =>
     runJob<StageCounts>(id, "POST /runs/{id}/relationships/analyze", {}),

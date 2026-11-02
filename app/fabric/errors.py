@@ -52,7 +52,8 @@ from app.workflow.plan_review import PlanEditInvalid
 from app.workflow.promotion import HashMismatch, TargetBusy
 from app.workflow.report_review import RegenerationOutOfScope
 from app.workflow.report_stage import ReportPlanInvalid
-from app.workflow.scope import SchemaNotFound, ScopeLocked
+from app.workflow.scope import SchemaNotFound, ScopeLocked, TableNotFound
+from app.workflow.column_definitions import InvalidColumnDefinitionsFile
 from app.workflow.scope_guard import ScopeViolation
 from app.workflow.stale import StaleArtifacts
 
@@ -216,6 +217,8 @@ _HANDLERS: list[tuple[type, Callable[[Exception], dict]]] = [
     (ScopeLocked, lambda exc: envelope(409, "SCOPE_LOCKED", str(exc), {"state": exc.state.value})),
     (ScopeMissing, lambda exc: envelope(400, "BAD_REQUEST", str(exc))),
     (SchemaNotFound, lambda exc: envelope(404, "SCHEMA_NOT_FOUND", str(exc), {"schema": exc.schema})),
+    (TableNotFound, lambda exc: envelope(404, "TABLE_NOT_FOUND", str(exc), {"schema": exc.schema, "table": exc.table})),
+    (InvalidColumnDefinitionsFile, lambda exc: envelope(400, "INVALID_FILE", str(exc))),
     (TargetNotAllowed, lambda exc: envelope(403, "TARGET_NOT_ALLOWED", str(exc))),
     (NameConflict, lambda exc: envelope(409, "NAME_CONFLICT", str(exc), {"item_type": exc.item_type})),
     (

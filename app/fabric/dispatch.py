@@ -26,6 +26,8 @@ from app.fabric.schemas import (
     ApprovalResponse,
     ArtifactItem,
     BridgeGenerateResponse,
+    ColumnDefinitionsUploadRequest,
+    ColumnDefinitionsUploadResponse,
     CompileResponse,
     CreateRunRequest,
     DataGapRequest,
@@ -71,6 +73,12 @@ from app.workflow.approval import ApprovalRecord, check_g1, list_approvals, perf
 from app.workflow.bridge_model_stage import generate_bridge
 from app.workflow.bridge_stage import propose_bridges
 from app.workflow.clarification import NotFound, answer_question, dismiss_question, edit_kpi
+from app.workflow.column_definitions import (
+    ARTIFACT as CD_ARTIFACT,
+    apply_to_tables,
+    parse_entries,
+    save_column_definitions,
+)
 from app.workflow.compile_stage import compile_run, current_contract, open_questions
 from app.workflow.feasibility_stage import check_feasibility
 from app.workflow.gates import GateResult
@@ -416,7 +424,7 @@ def _set_scope(call: Call) -> RunDetail:
     _authorize(run_id, call.principal, as_job=call.as_job)
     body = _parse_body(ScopeRequest, call.body)
     run, warnings = bind_scope(
-        deps.store(), deps.fabric_client(), deps.connector_factory(), run_id, body.workspace_id, body.lakehouse_id, body.schemas
+        deps.store(), deps.fabric_client(), deps.connector_factory(), run_id, body.workspace_id, body.lakehouse_id, body.schemas, body.tables
     )
     return detail(run, warnings)
 
@@ -426,13 +434,44 @@ def _harvest(call: Call) -> HarvestResponse:
     _authorize(run_id, call.principal, as_job=call.as_job)
     body = _parse_body(HarvestRequest, call.body) if call.body else None
     run, inventory = harvest_run(
-        deps.store(), deps.runs_root(), run_id, deps.connector_factory(), schemas=body.schemas if body else None, actor=call.principal["upn"]
+        deps.store(), deps.runs_root(), run_id, deps.connector_factory(),
+        schemas=body.schemas if body else None, tables=body.tables if body else None, actor=call.principal["upn"]
     )
     ref = run.artifacts[INVENTORY]
     return HarvestResponse(
         summary=HarvestSummary(**summary(inventory)),
         artifact=ArtifactItem(name=INVENTORY, version=ref.version, path=ref.path, hash=ref.hash, status=ref.status, updated_at=ref.updated_at),
         warnings=inventory.warnings,
+    )
+
+
+def _upload_column_definitions(call: Call) -> ColumnDefinitionsUploadResponse:
+    """A pure control-plane write (ArtifactStore, no Fabric/source token needed), so this
+    is one of the few udf: operations that doesn't inherit the ArtifactStore known gap."""
+    import base64
+
+    from app.workflow.column_definitions import InvalidColumnDefinitionsFile
+
+    run_id = call.params["run_id"]
+    _authorize(run_id, call.principal, as_job=call.as_job)
+    body = _parse_body(ColumnDefinitionsUploadRequest, call.body)
+    try:
+        content = base64.b64decode(body.content_base64, validate=True)
+    except Exception:
+        raise InvalidColumnDefinitionsFile("content_base64 is not valid base64") from None
+    entries = parse_entries(body.filename, content)
+    run, result = save_column_definitions(deps.store(), deps.runs_root(), run_id, body.filename, entries, actor=call.principal["upn"])
+    ref = run.artifacts[CD_ARTIFACT]
+    warnings: list[str] = []
+    try:
+        inventory = load_inventory(deps.runs_root(), run_id)
+        warnings = apply_to_tables(result, [t.model_dump(by_alias=True) for t in inventory.tables])
+    except NotFound:
+        pass  # nothing harvested yet; matching happens at the next harvest instead
+    return ColumnDefinitionsUploadResponse(
+        entries=len(result.entries),
+        warnings=warnings,
+        artifact=ArtifactItem(name=CD_ARTIFACT, version=ref.version, path=ref.path, hash=ref.hash, status=ref.status, updated_at=ref.updated_at),
     )
 
 
@@ -803,6 +842,7 @@ OPERATIONS: dict[tuple[str, str], Operation] = {
     ("GET", "/runs/{run_id}/approvals"): Operation("udf", _get_approvals),
     ("POST", "/runs/{run_id}/gates/{gate}/check"): Operation("udf", _check_gate),
     ("POST", "/runs/{run_id}/harvest"): Operation("job", _harvest),
+    ("POST", "/runs/{run_id}/column-definitions"): Operation("udf", _upload_column_definitions),
     ("POST", "/runs/{run_id}/profile"): Operation("job", _profile),
     ("POST", "/runs/{run_id}/relationships/analyze"): Operation("job", _analyze_relationships),
     ("GET", "/runs/{run_id}/inventory"): Operation("udf", _get_inventory),

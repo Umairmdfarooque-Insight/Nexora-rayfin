@@ -15,6 +15,7 @@ from app.contracts.feasibility_report import SCHEMA_VERSION, FeasibilityReport
 from app.contracts.source_resolution import SourceResolution
 from app.discovery.feasibility import (
     SYSTEM_PROMPT,
+    available_column_descriptions,
     available_columns,
     build_payload,
     evaluate,
@@ -97,7 +98,8 @@ def check_feasibility(
     columns = available_columns(resolution, inventory)
     needs = {}
     if contract.kpis:
-        user = json.dumps(build_payload(contract, columns), sort_keys=True)
+        descriptions = available_column_descriptions(resolution, inventory)
+        user = json.dumps(build_payload(contract, columns, descriptions), sort_keys=True)
         needs = _needs(llm, run_dir, user, contract)
     kpis = evaluate(contract, resolution, columns, needs)
     only = {o[4:].casefold() for o in restrict if o.startswith("kpi:")} if restrict is not None else None

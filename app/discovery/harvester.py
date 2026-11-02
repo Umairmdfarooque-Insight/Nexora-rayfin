@@ -87,18 +87,37 @@ def _columns(metadata: dict) -> list[dict]:
     return columns
 
 
-def harvest_tables(connector: Any, schemas: list[str]) -> tuple[list[dict], list[dict], list[str]]:
+def harvest_tables(
+    connector: Any, schemas: list[str], tables_filter: list[str] | None = None
+) -> tuple[list[dict], list[dict], list[str]]:
     """Returns (tables, errors, warnings). A table that fails is recorded in `errors` and the
-    others are still harvested. Listing a schema that fails aborts with a typed error."""
+    others are still harvested. Listing a schema that fails aborts with a typed error.
+
+    `tables_filter`, when given, is a list of "schema.table" strings (case-insensitive):
+    only those tables are harvested, schema by schema; a schema with none of its tables
+    requested is skipped entirely."""
     tables: list[dict] = []
     errors: list[dict] = []
     warnings: list[str] = []
 
+    wanted_by_schema: dict[str, set[str]] | None = None
+    if tables_filter:
+        wanted_by_schema = {}
+        for qualified in tables_filter:
+            schema_part, _, table_part = qualified.partition(".")
+            wanted_by_schema.setdefault(schema_part.lower(), set()).add(table_part.lower())
+
     for schema in schemas:
+        if wanted_by_schema is not None and schema.lower() not in wanted_by_schema:
+            continue
         try:
             listed = connector.list_tables(schema)
         except requests.RequestException as exc:
             raise to_fabric_error(exc) from None
+
+        if wanted_by_schema is not None:
+            wanted = wanted_by_schema[schema.lower()]
+            listed = [entry for entry in listed if entry["name"].lower() in wanted]
 
         for index, entry in enumerate(listed, start=1):
             name = entry["name"]

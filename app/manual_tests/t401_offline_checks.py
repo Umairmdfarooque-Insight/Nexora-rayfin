@@ -251,8 +251,8 @@ def main() -> None:
         check("a need with an invalid role is dropped", "bad role" not in fields and "bad role" not in unmapped)
         check("a KPI the contract lacks is ignored", [k["kpi"] for k in body["kpi_fields"]] == ["Net Revenue"])
         payload = json.loads(llm.calls[0][1])
-        check("the model got names and types only, no data", len(llm.calls) == 1 and base.SECRET_NAME not in llm.calls[0][1]
-              and set(payload) == {"contract", "glossary", "tables"} and all(set(c) == {"name", "type"} for t in payload["tables"] for c in t["columns"]))
+        check("the model got names, types and descriptions only, no data", len(llm.calls) == 1 and base.SECRET_NAME not in llm.calls[0][1]
+              and set(payload) == {"contract", "glossary", "tables"} and all(set(c) == {"name", "type", "description"} for t in payload["tables"] for c in t["columns"]))
         check("the files exist and the artifact is registered", (runs_root / rid / "SourceResolution.json").is_file()
               and (runs_root / rid / "resolutions" / "SourceResolution.v1.json").is_file() and store.get(rid).artifacts["SourceResolution"].version == 1)
         check("the run state never changes", store.get(rid).state is RunState.DATA_PROFILED)

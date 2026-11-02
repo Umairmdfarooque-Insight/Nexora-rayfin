@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from app.contracts.metadata_inventory import MetadataInventory
-from app.discovery.requirement_data_matcher import normalize
+from app.discovery.glossary import normalize
 from app.llm.errors import LlmInvalidOutput
 
 MAX_CANDIDATES = 200

@@ -34,6 +34,8 @@ from app.api.schemas import (
     ApprovalRequest,
     ApprovalResponse,
     ArtifactItem,
+    ColumnDefinitionsUploadRequest,
+    ColumnDefinitionsUploadResponse,
     CompileResponse,
     CreateRunRequest,
     DeployRequest,
@@ -89,6 +91,13 @@ from app.workflow.inventory_review import (
     raise_data_gap,
 )
 from app.workflow.harvest_stage import ARTIFACT as INVENTORY, harvest_run, load_inventory, summary
+from app.workflow.column_definitions import (
+    ARTIFACT as CD_ARTIFACT,
+    InvalidColumnDefinitionsFile,
+    apply_to_tables,
+    parse_entries,
+    save_column_definitions,
+)
 from app.contracts.metadata_inventory import RelationshipEvidence
 from app.discovery.relationship_candidates import Candidate
 from app.workflow.profile_stage import profile_run, summarize
@@ -373,6 +382,7 @@ def set_scope(
         body.workspace_id,
         body.lakehouse_id,
         body.schemas,
+        body.tables,
     )
     return detail(run, runs_root, warnings)
 
@@ -392,6 +402,7 @@ def harvest(
         run_id,
         connector_for_scope,
         schemas=body.schemas if body else None,
+        tables=body.tables if body else None,
         actor=user.upn,
     )
     ref = run.artifacts[INVENTORY]
@@ -406,6 +417,37 @@ def harvest(
             updated_at=ref.updated_at,
         ),
         warnings=inventory.warnings,
+    )
+
+
+@router.post("/{run_id}/column-definitions", response_model=ColumnDefinitionsUploadResponse)
+def upload_column_definitions(
+    run_id: str,
+    body: ColumnDefinitionsUploadRequest,
+    store: RunStore = Depends(get_store),
+    runs_root: Path = Depends(get_runs_root),
+):
+    import base64
+
+    try:
+        content = base64.b64decode(body.content_base64, validate=True)
+    except Exception:
+        raise InvalidColumnDefinitionsFile("content_base64 is not valid base64") from None
+    entries = parse_entries(body.filename, content)
+    run, result = save_column_definitions(store, runs_root, run_id, body.filename, entries, actor="system")
+    ref = run.artifacts[CD_ARTIFACT]
+    warnings = []
+    try:
+        inventory = load_inventory(runs_root, run_id)
+        warnings = apply_to_tables(result, [t.model_dump(by_alias=True) for t in inventory.tables])
+    except NotFound:
+        pass  # nothing harvested yet; matching happens at the next harvest instead
+    return ColumnDefinitionsUploadResponse(
+        entries=len(result.entries),
+        warnings=warnings,
+        artifact=ArtifactItem(
+            name=CD_ARTIFACT, version=ref.version, path=ref.path, hash=ref.hash, status=ref.status, updated_at=ref.updated_at
+        ),
     )
 
 

@@ -332,6 +332,13 @@ export interface ExceptionResult {
 export interface ScopeBody {
   workspace_id: string;
   lakehouse_id: string;
+  schemas?: string[];
+  tables?: string[];
+}
+
+export interface ColumnDefinitionsUploadResult {
+  entries: number;
+  warnings: string[];
 }
 
 // --- Plan (T-404, T-405) ---

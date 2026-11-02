@@ -11,6 +11,7 @@ class InventoryScope(BaseModel):
     workspace_id: str
     lakehouse_id: str
     schemas: list[str] = Field(default_factory=list)
+    tables: list[str] = Field(default_factory=list)  # "schema.table"; empty means every table
 
 
 class InventoryColumn(BaseModel):

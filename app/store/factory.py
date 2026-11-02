@@ -1,11 +1,31 @@
 """Pick the RunStore (RUN_STORE) and ArtifactStore (ARTIFACT_STORE)."""
 
+import contextvars
+
 from app.config import (
     get_optional_setting,
     get_required_setting,
 )
 from app.store.artifacts import ArtifactStore
 from app.store.base import RunStore
+
+_artifact_store_override: contextvars.ContextVar["ArtifactStore | None"] = contextvars.ContextVar(
+    "artifact_store_override", default=None
+)
+
+
+def set_artifact_store_override(store: "ArtifactStore | None") -> None:
+    """`nexora_api`'s `function_app.py` uses this: a UDF can't read `nexora_settings`
+    at all (no `notebookutils`, confirmed against a live tenant, 2026-11-02), so
+    `ARTIFACT_STORE`/`NEXORA_HOME_WORKSPACE_ID`/`NEXORA_CONTROL_LAKEHOUSE_ID` always
+    read as unset inside it and `get_artifact_store()` below would always fall back
+    to `local` -- a store nothing else can see. Instead the UDF builds a
+    `UdfLakehouseArtifactStore` from its own Manage Connections-injected
+    `fn.FabricLakehouseClient` (the same pattern `app.fabric.deps.set_store_override`
+    already uses for the SQL-backed `RunStore`) and sets it here for the duration of
+    one invocation. A context variable (not a plain global) keeps concurrent
+    invocations in the same worker process isolated."""
+    _artifact_store_override.set(store)
 
 
 def get_run_store() -> RunStore:
@@ -30,6 +50,10 @@ def get_run_store() -> RunStore:
 
 
 def get_artifact_store() -> ArtifactStore:
+    override = _artifact_store_override.get()
+    if override is not None:
+        return override
+
     kind = (get_optional_setting("ARTIFACT_STORE", "local") or "local").lower()
 
     if kind == "local":

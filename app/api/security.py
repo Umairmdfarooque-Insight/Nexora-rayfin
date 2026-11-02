@@ -132,11 +132,31 @@ def get_validator() -> TokenValidator:
 _bearer = HTTPBearer(auto_error=False, description="Entra access token for the Nexora API")
 
 
+def _dev_bypass_enabled() -> bool:
+    """True when the API should skip real Entra bearer-token validation and use a
+    synthetic principal instead: in local development, either because no Entra API app
+    registration is configured at all, or because NEXORA_LOCAL_AUTH_BYPASS is explicitly
+    set (for a registration that exists but isn't usable yet, e.g. pending tenant-admin
+    consent). Never true outside ENVIRONMENT=development."""
+    from app.config import ENVIRONMENT, NEXORA_LOCAL_AUTH_BYPASS
+    return ENVIRONMENT == "development" and (not ENTRA_API_CLIENT_ID or NEXORA_LOCAL_AUTH_BYPASS)
+
+
+_DEV_PRINCIPAL = Principal(oid="dev-user-oid", upn="dev@localhost", name="Dev User")
+_DEV_CONTEXT = None  # lazily built to avoid circular import at module level
+
+
 def authenticate(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    validator: TokenValidator = Depends(get_validator),
 ) -> AuthContext:
-    """Validate the request's bearer token. Runs once per request."""
+    """Validate the request's bearer token. In development without Entra settings,
+    returns a synthetic principal so the API is usable locally. Runs once per request."""
+    if _dev_bypass_enabled():
+        global _DEV_CONTEXT
+        if _DEV_CONTEXT is None:
+            _DEV_CONTEXT = AuthContext(principal=_DEV_PRINCIPAL, token="dev-token")
+        return _DEV_CONTEXT
+    validator = get_validator()
     if credentials is None or not credentials.credentials.strip():
         raise AuthError("UNAUTHENTICATED", "A bearer token is required")
     token = credentials.credentials.strip()

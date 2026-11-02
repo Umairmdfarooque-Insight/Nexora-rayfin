@@ -15,3 +15,4 @@ msal
 langgraph>=1.0,<2
 opentelemetry-sdk
 azure-monitor-opentelemetry-exporter
+openpyxl

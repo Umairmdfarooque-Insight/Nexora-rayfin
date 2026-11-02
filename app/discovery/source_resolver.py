@@ -138,7 +138,12 @@ def build_payload(contract, inventory: MetadataInventory, glossary_terms: dict[s
         },
         "glossary": glossary_terms,
         "tables": [
-            {"table": table_key(t), "columns": [{"name": c.name, "type": c.data_type} for c in t.columns]}
+            {
+                "table": table_key(t),
+                "columns": [
+                    {"name": c.name, "type": c.data_type, "description": c.description} for c in t.columns
+                ],
+            }
             for t in inventory.tables
         ],
     }

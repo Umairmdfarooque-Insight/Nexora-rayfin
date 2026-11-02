@@ -41,6 +41,13 @@ class SchemaNotFound(Exception):
         super().__init__(f"Schema not found in the Lakehouse: {schema}")
 
 
+class TableNotFound(Exception):
+    def __init__(self, schema: str, table: str):
+        self.schema = schema
+        self.table = table
+        super().__init__(f"Table not found in the Lakehouse: {schema}.{table}")
+
+
 def scope_is_locked(run: Run) -> bool:
     if run.state in (RunState.CREATED, RunState.NEEDS_CLARIFICATION):
         return False
@@ -67,6 +74,24 @@ def _schema_names(connector: Any) -> dict[str, str]:
     return {s["name"].lower(): s["name"] for s in schemas}
 
 
+def _table_names(connector: Any, schema: str) -> dict[str, str]:
+    """Lowercased name -> name as the Lakehouse spells it, for one schema's tables."""
+    try:
+        tables = connector.list_tables(schema)
+    except requests.Timeout:
+        raise FabricTimeout("The Lakehouse did not respond in time") from None
+    except requests.HTTPError as error:
+        status = getattr(error.response, "status_code", None)
+        if status in (401, 403):
+            raise FabricForbidden("Access to the Lakehouse was denied") from None
+        raise FabricUpstreamError(f"The Lakehouse returned HTTP {status}") from None
+    except requests.RequestException as error:
+        raise FabricUpstreamError(
+            f"The Lakehouse could not be reached ({type(error).__name__})"
+        ) from None
+    return {t["name"].lower(): t["name"] for t in tables}
+
+
 def bind_scope(
     store: RunStore,
     fabric: FabricApiClient,
@@ -75,10 +100,15 @@ def bind_scope(
     workspace_id: str,
     lakehouse_id: str,
     schemas: list[str] | None = None,
+    tables: list[str] | None = None,
 ) -> tuple[Run, list[str]]:
     """Verify and save a run's scope. Returns the run and any warnings.
 
-    Raises RunNotFound, ScopeLocked, FabricForbidden, SchemaNotFound or a
+    `tables` entries are "schema.table". If `schemas` wasn't given but `tables` was, the
+    schemas implied by the resolved tables become `scope.schemas` too, so a table-only
+    request doesn't silently fall back to "every schema".
+
+    Raises RunNotFound, ScopeLocked, FabricForbidden, SchemaNotFound, TableNotFound or a
     FabricError. Nothing is saved unless every check passes.
     """
     run = store.get(run_id)
@@ -116,6 +146,34 @@ def bind_scope(
                 raise SchemaNotFound(name)
             resolved.append(available[name.lower()])
         scope.schemas = resolved
+
+    requested_tables = list(dict.fromkeys(tables or []))
+    if requested_tables:
+        connector = connector_for_scope(scope)
+        schema_names = _schema_names(connector)
+        wanted_by_schema: dict[str, list[str]] = {}
+        for qualified in requested_tables:
+            schema_part, _, table_part = qualified.partition(".")
+            if not table_part:
+                raise TableNotFound(qualified, "(expected 'schema.table')")
+            wanted_by_schema.setdefault(schema_part, []).append(table_part)
+
+        resolved_tables = []
+        resolved_schemas = set(scope.schemas)
+        for schema_part, wanted in wanted_by_schema.items():
+            if schema_part.lower() not in schema_names:
+                raise SchemaNotFound(schema_part)
+            schema_name = schema_names[schema_part.lower()]
+            available_tables = _table_names(connector, schema_name)
+            for table_part in wanted:
+                if table_part.lower() not in available_tables:
+                    raise TableNotFound(schema_name, table_part)
+                resolved_tables.append(f"{schema_name}.{available_tables[table_part.lower()]}")
+            resolved_schemas.add(schema_name)
+
+        scope.tables = sorted(resolved_tables, key=str.casefold)
+        if not scope.schemas:
+            scope.schemas = sorted(resolved_schemas, key=str.casefold)
 
     run.scope = scope
     run.updated_at = utc_now()

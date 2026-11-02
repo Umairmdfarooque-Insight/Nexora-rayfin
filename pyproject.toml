@@ -6,14 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "nexora"
 version = "0.0.0"
 description = "Nexora: the AI engine behind the Rayfin UI for Microsoft Fabric"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "config"]
 
 [tool.setuptools.package-data]
 app = ["**/*.yaml", "**/*.json"]
+config = ["*.yaml"]

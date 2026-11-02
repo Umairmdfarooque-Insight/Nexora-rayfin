@@ -7,6 +7,7 @@ import type {
   ApprovalBody,
   ApprovalRecord,
   ApprovalResult,
+  ColumnDefinitionsUploadResult,
   CompileResult,
   CreateRunBody,
   ExceptionResult,
@@ -268,4 +269,25 @@ export const api = {
     apiFetch<Lakehouse[]>(
       `/fabric/workspaces/${encodeURIComponent(workspaceId)}/lakehouses`,
     ),
+  listSchemas: (workspaceId: string, lakehouseId: string, lakehouseName: string) =>
+    apiFetch<string[]>(
+      `/fabric/workspaces/${encodeURIComponent(workspaceId)}/lakehouses/${encodeURIComponent(lakehouseId)}/schemas` +
+        `?lakehouse_name=${encodeURIComponent(lakehouseName)}`,
+    ),
+  listTables: (workspaceId: string, lakehouseId: string, lakehouseName: string, schema: string) =>
+    apiFetch<string[]>(
+      `/fabric/workspaces/${encodeURIComponent(workspaceId)}/lakehouses/${encodeURIComponent(lakehouseId)}` +
+        `/schemas/${encodeURIComponent(schema)}/tables?lakehouse_name=${encodeURIComponent(lakehouseName)}`,
+    ),
+  uploadColumnDefinitions: async (id: string, file: File) => {
+    const buffer = await file.arrayBuffer();
+    let binary = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const contentBase64 = btoa(binary);
+    return apiFetch<ColumnDefinitionsUploadResult>(
+      `/runs/${encodeURIComponent(id)}/column-definitions`,
+      { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: contentBase64 }) },
+    );
+  },
 };

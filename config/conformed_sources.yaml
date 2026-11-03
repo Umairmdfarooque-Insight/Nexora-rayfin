@@ -6,6 +6,7 @@ conformed:
   - saleslt.SalesLT_SalesOrderDetail
   - saleslt.SalesLT_SalesOrderHeader
   - saleslt.SalesLT_Customer
+  - saleslt.DimDate
   - nexora_test.dim_date  # test date table from T-004
   - nexora_test.dim_promotion  # test fixtures for the bridge scenarios (T-403)
   - nexora_test.bridge_product_promotion
